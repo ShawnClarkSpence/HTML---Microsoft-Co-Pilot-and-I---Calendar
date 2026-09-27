@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Automatic Year Calendar</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --background: #f4f6f8;
+      --card: #ffffff;
+      --text: #17202a;
+      --muted: #6b7280;
+      --border: #d8dee6;
+      --accent: #1769aa;
+      --today: #ffd54f;
+      --weekend: #f4f8fc;
+      --danger: #b42318;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: var(--background);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      max-width: 1400px;
+      margin: 0 auto 24px;
+    }
+
+    h1 { margin: 0; }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button {
+      border: 1px solid var(--accent);
+      border-radius: 7px;
+      padding: 9px 14px;
+      background: var(--accent);
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:hover { filter: brightness(1.1); }
+    button.danger { background: var(--danger); border-color: var(--danger); }
+    button.secondary { background: transparent; color: var(--text); border-color: var(--border); }
+
+    #calendar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 18px;
+      max-width: 1400px;
+      margin: auto;
+    }
+
+    .month {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--card);
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .month h2 {
+      margin: 0;
+      padding: 12px;
+      background: var(--accent);
+      color: white;
+      text-align: center;
+      font-size: 1.15rem;
+    }
+
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+
+    th, td {
+      height: 45px;
+      border: 1px solid var(--border);
+      text-align: center;
+    }
+
+    th { height: 34px; color: var(--muted); font-size: 0.76rem; }
+
+    td {
+      position: relative;
+      font-family: Consolas, monospace;
+      user-select: none;
+    }
+
+    td.date-cell { cursor: pointer; }
+    td.date-cell:hover { outline: 2px solid var(--accent); outline-offset: -2px; }
+    td.weekend { background: var(--weekend); }
+    td.empty { color: transparent; }
+
+    td.today {
+      border: 2px solid #b98500;
+      background: var(--today);
+      color: #111;
+      font-weight: 800;
+    }
+
+    .note-dot {
+      position: absolute;
+      right: 5px;
+      bottom: 5px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #e53935;
+    }
+
+    dialog {
+      width: min(520px, calc(100% - 32px));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0;
+      background: var(--card);
+      color: var(--text);
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    }
+
+    dialog::backdrop { background: rgba(0,0,0,.55); }
+    .note-panel { padding: 20px; }
+    .note-panel h2 { margin: 0 0 12px; }
+
+    textarea {
+      display: block;
+      width: 100%;
+      min-height: 180px;
+      resize: vertical;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--background);
+      color: var(--text);
+      font: 1rem Arial, sans-serif;
+    }
+
+    .note-status { min-height: 20px; margin: 8px 0; color: var(--muted); font-size: .9rem; }
+    .note-actions { display: flex; justify-content: space-between; gap: 8px; }
+    .note-actions div { display: flex; gap: 8px; }
+
+    body.month-view #calendar { display: block; max-width: 1100px; }
+    body.month-view .month { display: none; }
+    body.month-view .month.active-month { display: block; }
+    body.month-view .month.active-month h2 { font-size: 1.6rem; cursor: default; }
+    body.month-view .month.active-month th { height: 50px; font-size: 1rem; }
+    body.month-view .month.active-month td { height: 105px; font-size: 1.15rem; vertical-align: top; padding-top: 10px; }
+
+    .month h2 { cursor: pointer; }
+    .month h2:hover { filter: brightness(1.12); }
+    #monthNavigation { display: none; }
+    body.month-view #yearNavigation { display: none; }
+    body.month-view #monthNavigation { display: flex; }
+
+    @media print {
+      body { padding: 0; background: white; color: black; }
+      header { margin-bottom: 10px; }
+      .controls, dialog, .note-dot { display: none; }
+      #calendar { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .month { break-inside: avoid; box-shadow: none; }
+      th, td { height: 27px; }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: #111827;
+        --card: #1f2937;
+        --text: #f3f4f6;
+        --muted: #c5cbd4;
+        --border: #465261;
+        --weekend: #253448;
+      }
+    }
+
+
+    .cell-day-number {
+      display: block;
+      font-weight: 700;
+    }
+
+    .calendar-note {
+      display: none;
+      margin-top: 7px;
+      padding: 5px;
+      color: var(--text);
+      font: 0.72rem/1.25 Arial, sans-serif;
+      text-align: left;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      max-height: 68px;
+      overflow: hidden;
+    }
+
+    body.month-view .active-month .calendar-note,
+    body.print-preview .active-month .calendar-note {
+      display: block;
+    }
+
+    body.print-preview {
+      background: white;
+      color: black;
+    }
+
+    body.print-preview header .controls { display: none !important; }
+    body.print-preview #calendar { display: block; max-width: 1100px; }
+    body.print-preview .month { display: none; box-shadow: none; }
+    body.print-preview .month.active-month { display: block; }
+
+    #exitPrintView {
+      display: none;
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 20;
+    }
+
+    body.print-preview #exitPrintView { display: block; }
+
+    #monthlyPrintNotes { display: none; }
+    @media print {
+      body.printing-month-notes #monthlyPrintNotes { display: block; max-width: 1100px; margin: 24px auto 0; }
+      body.printing-month-notes #monthlyPrintNotes h2 { border-bottom: 2px solid #000; padding-bottom: 6px; }
+      body.printing-month-notes .printed-note { break-inside: avoid; margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid #aaa; }
+      body.printing-month-notes .printed-note h3 { margin: 0 0 4px; font-size: 14px; }
+      body.printing-month-notes .printed-note-text { white-space: pre-wrap; font-size: 12px; }
+    }
+
+    @media print {
+      @page { size: landscape; margin: 0.4in; }
+      body { padding: 0; background: white !important; color: black !important; }
+      header .controls, dialog, .note-dot, #exitPrintView, #monthlyPrintNotes { display: none !important; }
+      body.month-view #calendar, body.printing-month-notes #calendar { display: block; max-width: none; }
+      body.month-view .month, body.printing-month-notes .month { display: none; }
+      body.month-view .month.active-month,
+      body.printing-month-notes .month.active-month { display: block; box-shadow: none; border-radius: 0; }
+      body.month-view .active-month .calendar-note,
+      body.printing-month-notes .active-month .calendar-note { display: block; }
+      body.month-view .active-month th,
+      body.printing-month-notes .active-month th { height: 30px; font-size: 10pt; }
+      body.month-view .active-month td,
+      body.printing-month-notes .active-month td {
+        height: 92px;
+        padding: 5px;
+        vertical-align: top;
+        color: black !important;
+        background: white !important;
+        border: 1px solid #555;
+      }
+      .calendar-note {
+        display: block;
+        max-height: 65px;
+        overflow: hidden;
+        color: black !important;
+        font-size: 8.5pt;
+      }
+      .month h2 { color: black !important; background: white !important; border: 1px solid #555; }
+    }
+
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="yearHeading"></h1>
+    <div id="yearNavigation" class="controls">
+      <button type="button" onclick="changeYear(-1)">Previous year</button>
+      <button type="button" onclick="showCurrentYear()">Current year</button>
+      <button type="button" onclick="changeYear(1)">Next year</button>
+      <button type="button" onclick="exportNotes()">Export Notes</button>
+      <button type="button" onclick="window.print()">Print</button>
+    </div>
+    <div id="monthNavigation" class="controls">
+      <button type="button" onclick="changeMonth(-1)">Previous month</button>
+      <button type="button" onclick="showCurrentMonth()">Current month</button>
+      <button type="button" onclick="changeMonth(1)">Next month</button>
+      <button type="button" onclick="showYearView()">Back to year</button>
+      <button type="button" onclick="exportNotes()">Export Notes</button>
+      <button type="button" onclick="showPrintView()">Print View</button>
+      <button type="button" onclick="printMonthNotes()">Print Month + Notes</button>
+    </div>
+  </header>
+
+  <main id="calendar"></main>
+
+  <dialog id="noteDialog">
+    <div class="note-panel">
+      <h2 id="noteDateHeading">Date note</h2>
+      <textarea id="noteText" placeholder="Type your note here..."></textarea>
+      <div id="noteStatus" class="note-status"></div>
+      <div class="note-actions">
+        <button type="button" class="danger" onclick="deleteNote()">Delete note</button>
+        <div>
+          <button type="button" class="secondary" onclick="closeNote()">Close</button>
+          <button type="button" onclick="saveNote()">Save note</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <button id="exitPrintView" type="button" onclick="exitPrintView()">Exit Print View</button>
+
+  <script>
+    const monthNames = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const STORAGE_KEY = "automaticCalendarNotes";
+
+    let displayedYear = new Date().getFullYear();
+    let displayedMonth = new Date().getMonth();
+    let monthViewOpen = false;
+    let selectedDateKey = "";
+    let saveTimer;
+
+    function readNotes() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+      } catch (error) {
+        return {};
+      }
+    }
+
+    function writeNotes(notes) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+    }
+
+    function makeDateKey(year, month, day) {
+      return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+
+    function generateCalendar(year) {
+      const calendar = document.getElementById("calendar");
+      const heading = document.getElementById("yearHeading");
+      const currentDate = new Date();
+      const notes = readNotes();
+
+      heading.textContent = year + " Calendar";
+      document.title = year + " - Calendar";
+      calendar.replaceChildren();
+
+      for (let month = 0; month < 12; month++) {
+        const firstWeekday = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const section = document.createElement("section");
+        section.className = "month";
+        section.dataset.month = month;
+
+        const title = document.createElement("h2");
+        title.textContent = monthNames[month];
+        title.title = "Open full month";
+        title.addEventListener("click", () => showMonthView(month, year));
+        section.appendChild(title);
+
+        const table = document.createElement("table");
+        const thead = document.createElement("thead");
+        const headerRow = document.createElement("tr");
+
+        dayNames.forEach(name => {
+          const th = document.createElement("th");
+          th.textContent = name;
+          headerRow.appendChild(th);
+        });
+
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+        let day = 1;
+
+        for (let week = 0; week < 6; week++) {
+          const row = document.createElement("tr");
+
+          for (let weekday = 0; weekday < 7; weekday++) {
+            const cell = document.createElement("td");
+            const position = week * 7 + weekday;
+
+            if (position >= firstWeekday && day <= daysInMonth) {
+              const dateKey = makeDateKey(year, month, day);
+              const dayNumber = document.createElement("span");
+              dayNumber.className = "cell-day-number";
+              dayNumber.textContent = day;
+              cell.appendChild(dayNumber);
+              cell.classList.add("date-cell");
+              cell.dataset.dateKey = dateKey;
+              cell.dataset.dateLabel = `${monthNames[month]} ${day}, ${year}`;
+              cell.title = notes[dateKey] ? "Click to edit note" : "Click to add note";
+              cell.addEventListener("click", () => openNote(dateKey, cell.dataset.dateLabel));
+
+              if (weekday === 0 || weekday === 6) cell.classList.add("weekend");
+
+              if (year === currentDate.getFullYear() &&
+                  month === currentDate.getMonth() &&
+                  day === currentDate.getDate()) {
+                cell.classList.add("today");
+              }
+
+              if (notes[dateKey] && notes[dateKey].trim()) {
+                const dot = document.createElement("span");
+                dot.className = "note-dot";
+                dot.setAttribute("aria-label", "This date has a note");
+
+                const notePreview = document.createElement("div");
+                notePreview.className = "calendar-note";
+                notePreview.textContent = notes[dateKey];
+
+                cell.append(dot, notePreview);
+              }
+
+              day++;
+            } else {
+              cell.className = "empty";
+              cell.innerHTML = "&nbsp;";
+            }
+
+            row.appendChild(cell);
+          }
+
+          tbody.appendChild(row);
+        }
+
+        table.appendChild(tbody);
+        section.appendChild(table);
+        calendar.appendChild(section);
+      }
+
+      if (monthViewOpen) activateDisplayedMonth();
+    }
+
+    function openNote(dateKey, dateLabel) {
+      selectedDateKey = dateKey;
+      document.getElementById("noteDateHeading").textContent = dateLabel;
+      document.getElementById("noteText").value = readNotes()[dateKey] || "";
+      document.getElementById("noteStatus").textContent = "Notes are stored in this browser.";
+      document.getElementById("noteDialog").showModal();
+      document.getElementById("noteText").focus();
+    }
+
+    function saveNote(showMessage = true) {
+      if (!selectedDateKey) return;
+
+      const notes = readNotes();
+      const value = document.getElementById("noteText").value.trim();
+
+      if (value) notes[selectedDateKey] = value;
+      else delete notes[selectedDateKey];
+
+      writeNotes(notes);
+      generateCalendar(displayedYear);
+      if (showMessage) document.getElementById("noteStatus").textContent = "Saved.";
+    }
+
+    function deleteNote() {
+      if (!selectedDateKey) return;
+      const notes = readNotes();
+      delete notes[selectedDateKey];
+      writeNotes(notes);
+      document.getElementById("noteText").value = "";
+      generateCalendar(displayedYear);
+      document.getElementById("noteStatus").textContent = "Note deleted.";
+    }
+
+    function closeNote() {
+      saveNote(false);
+      document.getElementById("noteDialog").close();
+      selectedDateKey = "";
+    }
+
+    document.getElementById("noteText").addEventListener("input", () => {
+      clearTimeout(saveTimer);
+      document.getElementById("noteStatus").textContent = "Typing...";
+      saveTimer = setTimeout(() => saveNote(true), 500);
+    });
+
+    document.getElementById("noteDialog").addEventListener("cancel", event => {
+      event.preventDefault();
+      closeNote();
+    });
+
+    function showMonthView(month, year = displayedYear) {
+      displayedYear = year;
+      displayedMonth = month;
+      monthViewOpen = true;
+      document.body.classList.add("month-view");
+      activateDisplayedMonth();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function activateDisplayedMonth() {
+      document.querySelectorAll(".month").forEach(section => {
+        section.classList.toggle("active-month", Number(section.dataset.month) === displayedMonth);
+      });
+      document.getElementById("yearHeading").textContent =
+        `${monthNames[displayedMonth]} ${displayedYear}`;
+      document.title = `${monthNames[displayedMonth]} ${displayedYear} - Calendar`;
+    }
+
+    function changeMonth(amount) {
+      displayedMonth += amount;
+      if (displayedMonth < 0) {
+        displayedMonth = 11;
+        displayedYear--;
+        generateCalendar(displayedYear);
+      } else if (displayedMonth > 11) {
+        displayedMonth = 0;
+        displayedYear++;
+        generateCalendar(displayedYear);
+      } else {
+        activateDisplayedMonth();
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function showCurrentMonth() {
+      const now = new Date();
+      displayedYear = now.getFullYear();
+      displayedMonth = now.getMonth();
+      monthViewOpen = true;
+      document.body.classList.add("month-view");
+      generateCalendar(displayedYear);
+    }
+
+    function showYearView() {
+      monthViewOpen = false;
+      document.body.classList.remove("month-view");
+      generateCalendar(displayedYear);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function showPrintView() {
+      if (!monthViewOpen) {
+        alert("Open a month first.");
+        return;
+      }
+      document.body.classList.add("print-preview");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function exitPrintView() {
+      document.body.classList.remove("print-preview");
+    }
+
+    function printMonthNotes() {
+      if (!monthViewOpen) {
+        alert("Open a month first, then choose Print Month + Notes.");
+        return;
+      }
+      document.body.classList.add("printing-month-notes");
+      window.print();
+      document.body.classList.remove("printing-month-notes");
+    }
+
+    function exportNotes() {
+      const notes = readNotes();
+      const dates = Object.keys(notes).filter(date => notes[date].trim()).sort();
+
+      if (!dates.length) {
+        alert("There are no notes to export.");
+        return;
+      }
+
+      let output = "CALENDAR NOTES\n==============\n\n";
+      dates.forEach(date => {
+        output += `${date}\n${notes[date]}\n------------------------------\n\n`;
+      });
+
+      const blob = new Blob([output], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "calendar-notes.txt";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function changeYear(amount) {
+      monthViewOpen = false;
+      document.body.classList.remove("month-view");
+      displayedYear += amount;
+      generateCalendar(displayedYear);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function showCurrentYear() {
+      monthViewOpen = false;
+      document.body.classList.remove("month-view");
+      displayedYear = new Date().getFullYear();
+      generateCalendar(displayedYear);
+    }
+
+    generateCalendar(displayedYear);
+  </script>
+</body>
+</html>
